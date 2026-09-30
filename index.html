@@ -93,6 +93,14 @@ button{cursor:pointer}
 .day:hover .add,.add:focus-visible{opacity:1}
 @media (hover:none){.add{opacity:1}}
 
+.mboss{display:none}
+.mday{display:flex;flex-direction:column;gap:6px}
+.mh{display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--surface2);border-radius:8px;padding:6px 8px 6px 12px}
+.mh .dn{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.mh .dd{font-family:var(--f-display);font-weight:600;font-size:17px}
+.mday.today .mh{background:var(--accent);color:var(--accent-fg)}
+.mday.today .mh .dn{color:inherit;opacity:.85}
+.wrap>*{min-width:0}
 .iv{display:flex;flex-direction:column;gap:2px;text-align:left;width:100%;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:6px 8px}
 .iv:hover{border-color:var(--accent)}
 .iv .t{font-family:var(--f-mono);font-size:12px;font-weight:500}
@@ -149,7 +157,13 @@ button{cursor:pointer}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:9px 14px;border-radius:8px;z-index:60;max-width:calc(100% - 32px)}
 [hidden]{display:none!important}
 
+@media (max-width:760px){
+  .gridbox{display:none}
+  .mboss{display:flex;flex-direction:column;gap:14px}
+  .summary .btn{padding:8px 12px;font-size:13px}
+}
 @media (max-width:640px){
+  input,select,textarea{font-size:16px}
   .fields{grid-template-columns:1fr}
   .dayblock{grid-template-columns:56px minmax(0,1fr);gap:10px}
   .dayblock .dl .dd{font-size:22px}
@@ -242,13 +256,14 @@ button{cursor:pointer}
     if(isBoss()&&role==='employeur')renderBoss();else renderEmployee();
   }
   function legend(){return '<div class="summary">'+Object.keys(TYPES).map(function(k){return '<span class="chip" style="--tc:'+typeColor(k)+'"><i></i>'+TYPES[k]+'</span>'}).join('')+'</div>'}
-  function cardHtml(it){
+  function cardHtml(it,withWho){
     var badge=it.status&&it.status!=='prevue'?'<span class="badge '+esc(it.status)+'">'+esc(STATUS[it.status]||'')+'</span>':'';
     return '<button class="iv '+esc(it.status||'')+'" data-a="edit" data-id="'+esc(it.id)+'">'+
       '<span class="t">'+esc(it.start)+' – '+esc(it.end)+'</span>'+
       '<span class="chip" style="--tc:'+typeColor(it.type)+'"><i></i>'+esc(TYPES[it.type]||'Intervention')+'</span>'+
       '<span class="c">'+esc(it.client||'Client à préciser')+'</span>'+
-      (it.address?'<span class="a">'+esc(it.address)+'</span>':'')+badge+'</button>';
+      (it.address?'<span class="a">'+esc(it.address)+'</span>':'')+
+      (withWho?'<span class="badge">'+(it.emp?esc(nameOf(it.emp)):'À affecter')+'</span>':'')+badge+'</button>';
   }
   function renderBoss(){
     var td=todayIso(),active=items.filter(function(i){return i.status!=='annulee'});
@@ -273,6 +288,14 @@ button{cursor:pointer}
       }
     });
     h+='</div></div>';
+    h+='<div class="mboss">';
+    for(var j=0;j<7;j++){
+      var dj=addDays(weekStart,j),dsj=iso(dj);
+      var lj=items.filter(function(it){return it.date===dsj}).sort(byTime);
+      h+='<section class="mday'+(dsj===td?' today':'')+'"><div class="mh"><div><span class="dn">'+DAYS[j]+'</span> <span class="dd">'+dj.getDate()+' '+MONTHS[dj.getMonth()]+'</span></div><button class="btn small" data-a="new" data-date="'+dsj+'">+ Ajouter</button></div>'+
+        (lj.length?lj.map(function(it){return cardHtml(it,true)}).join(''):'<div class="free">Rien de prévu</div>')+'</section>';
+    }
+    h+='</div>';
     if(!team.length)h+='<div class="empty">Aucun salarié pour l’instant. Ajoutez-les avec le bouton « Équipe ».</div>';
     else if(!items.length)h+='<div class="empty">Aucune intervention cette semaine. Utilisez « + Intervention » ou le + dans une case pour en planifier une.</div>';
     $('main').innerHTML=h+legend();
