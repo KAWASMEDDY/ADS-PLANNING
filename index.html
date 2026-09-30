@@ -175,7 +175,7 @@ button{cursor:pointer}
   var MONTHS=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
 
   var cfg=window.ADS_CONFIG||{};
-  var configured=cfg.SUPABASE_URL&&cfg.SUPABASE_ANON_KEY&&!/VOTRE/.test(cfg.SUPABASE_URL+cfg.SUPABASE_ANON_KEY);
+  var configured=cfg.SUPABASE_URL&&cfg.SUPABASE_ANON_KEY&&cfg.TEAM_EMAIL&&!/VOTRE/.test(cfg.SUPABASE_URL+cfg.SUPABASE_ANON_KEY);
   var sb=null;
   var session=null,profile=null,profiles=[],team=[],items=[];
   var role='salarie',me='',weekStart=mondayOf(new Date()),editing=null,deferredInstall=null,loadSeq=0,refreshTimer=null;
@@ -197,7 +197,7 @@ button{cursor:pointer}
   function byTime(a,b){return (a.start||'').localeCompare(b.start||'')}
   function typeColor(t){return 'var(--t-'+(TYPES[t]?t:'entretien')+')'}
   function mapsUrl(a){return 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(a)}
-  function nameOf(id){var p=profiles.filter(function(x){return x.id===id})[0];return p?p.name:'Salarié'}
+  function nameOf(id){var p=team.filter(function(x){return x.id===id})[0];return p?p.name:'Salarié'}
   function isBoss(){return profile&&profile.role==='employeur'}
   function isStandalone(){return (window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||window.navigator.standalone===true}
 
@@ -205,16 +205,24 @@ button{cursor:pointer}
   function renderSetup(){
     $('app').innerHTML='<div class="login"><h1>Planning ADS</h1><div class="err">La connexion à la base de données n’est pas encore réglée. Ouvrez le fichier config.js et renseignez l’adresse et la clé Supabase, comme indiqué dans le guide.</div></div>';
   }
+  var loginMode='equipe';
   function renderLogin(msg){
-    $('app').innerHTML='<form class="login" id="loginform" autocomplete="on">'+
+    var eq=loginMode==='equipe';
+    $('app').innerHTML='<form class="login" id="'+(eq?'loginteam':'loginboss')+'" autocomplete="on">'+
       '<img src="icon-192.png" alt="">'+
       '<div><h1>Planning ADS</h1><p>Assainissement Débouchage Services</p></div>'+
+      '<div class="tabs" role="tablist"><button type="button" class="tab" role="tab" data-a="logintab" data-v="equipe" aria-selected="'+eq+'">Salarié</button><button type="button" class="tab" role="tab" data-a="logintab" data-v="boss" aria-selected="'+(!eq)+'">Employeur</button></div>'+
       (msg?'<div class="err" role="alert">'+esc(msg)+'</div>':'')+
-      '<div class="fld"><label for="email">Adresse e-mail</label><input id="email" type="email" autocomplete="username" required></div>'+
-      '<div class="fld"><label for="pwd">Mot de passe</label><input id="pwd" type="password" autocomplete="current-password" required></div>'+
-      '<button class="btn primary" type="submit" id="loginbtn">Se connecter</button>'+
-      '<p class="small-note">Votre accès vous est communiqué par votre employeur.</p></form>';
-    var e=$('email');if(e)e.focus();
+      (eq?
+        '<div class="fld"><label for="code">Code de l’équipe</label><input id="code" type="password" autocomplete="current-password" required></div>'+
+        '<button class="btn primary" type="submit" id="loginbtn">Entrer</button>'+
+        '<p class="small-note">Le code vous est donné par votre employeur. Vous choisirez ensuite votre prénom dans la liste.</p>'
+      :
+        '<div class="fld"><label for="email">Adresse e-mail</label><input id="email" type="email" autocomplete="username" required></div>'+
+        '<div class="fld"><label for="pwd">Mot de passe</label><input id="pwd" type="password" autocomplete="current-password" required></div>'+
+        '<button class="btn primary" type="submit" id="loginbtn">Se connecter</button>')+
+      '</form>';
+    var f=$(eq?'code':'email');if(f)f.focus();
   }
   function renderTop(){
     var tabs='';
@@ -225,7 +233,7 @@ button{cursor:pointer}
       '<div class="weeknav"><button class="btn icon" data-a="prev" aria-label="Semaine précédente">‹</button>'+
       '<div class="label">Semaine '+isoWeek(weekStart)+'<small>'+esc(weekRange())+'</small></div>'+
       '<button class="btn icon" data-a="next" aria-label="Semaine suivante">›</button><button class="btn" data-a="today">Aujourd’hui</button></div></div>'+
-      '<div class="userbar"><span>Connecté : <b style="color:var(--fg)">'+esc(profile?profile.name:'')+'</b></span>'+inst+'<button class="btn small" data-a="logout">Se déconnecter</button></div>'+
+      '<div class="userbar"><span>Connecté : <b style="color:var(--fg)">'+esc(isBoss()?'Employeur':(me?nameOf(me):'Équipe'))+'</b></span>'+inst+'<button class="btn small" data-a="logout">Se déconnecter</button></div>'+
       '<div id="main"></div>';
     renderMain();
   }
@@ -265,17 +273,19 @@ button{cursor:pointer}
       }
     });
     h+='</div></div>';
-    if(!team.length)h+='<div class="empty">Aucun salarié pour l’instant. Créez les comptes dans Supabase (voir le guide), ils apparaîtront ici.</div>';
+    if(!team.length)h+='<div class="empty">Aucun salarié pour l’instant. Ajoutez-les avec le bouton « Équipe ».</div>';
     else if(!items.length)h+='<div class="empty">Aucune intervention cette semaine. Utilisez « + Intervention » ou le + dans une case pour en planifier une.</div>';
     $('main').innerHTML=h+legend();
   }
   function renderEmployee(){
-    var h='';
-    if(isBoss()){
-      if(!me||!team.some(function(p){return p.id===me}))me=team.length?team[0].id:'';
-      h+='<div class="me"><label for="me">Voir le planning de</label><select id="me" data-a="me">'+team.map(function(p){return '<option value="'+esc(p.id)+'"'+(p.id===me?' selected':'')+'>'+esc(p.name)+'</option>'}).join('')+'</select></div>';
-    }else me=profile.id;
-    if(!me){$('main').innerHTML=h+'<div class="empty">Aucun salarié à afficher.</div>';return}
+    var saved='';try{saved=localStorage.getItem('ads-me')||''}catch(x){}
+    if(me&&!team.some(function(p){return p.id===me}))me='';
+    if(!isBoss()&&!me&&saved&&team.some(function(p){return p.id===saved}))me=saved;
+    if(isBoss()&&!me)me=team.length?team[0].id:'';
+    var h='<div class="me"><label for="me">'+(isBoss()?'Voir le planning de':'Vous êtes')+'</label><select id="me" data-a="me">'+
+      (isBoss()?'':'<option value="">Choisir mon prénom</option>')+
+      team.map(function(p){return '<option value="'+esc(p.id)+'"'+(p.id===me?' selected':'')+'>'+esc(p.name)+'</option>'}).join('')+'</select></div>';
+    if(!me){$('main').innerHTML=h+'<div class="empty">'+(team.length?'Choisissez votre prénom pour voir vos interventions de la semaine.':'Aucun salarié dans la liste pour l’instant.')+'</div>';return}
     var mine=items.filter(function(it){return it.emp===me&&it.status!=='annulee'});
     var tot=mine.reduce(function(s,x){return s+hours(x)},0);
     h+='<div class="summary"><span><b>'+mine.length+'</b> intervention'+(mine.length>1?'s':'')+'</span><span><b>'+fmtH(tot)+'</b> planifiées</span></div><div class="agenda">';
@@ -344,11 +354,11 @@ button{cursor:pointer}
 
   /* ---------- Équipe ---------- */
   function openTeam(){
-    var list=profiles.filter(function(p){return p.role==='salarie'});
     $('modal').innerHTML='<div class="overlay" data-a="overlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="tt"><h2 id="tt">Équipe</h2>'+
-      '<p class="small-note">Pour ajouter un salarié, créez son compte dans Supabase (Authentication, Users, Add user). Il apparaît ici et vous pouvez corriger son prénom.</p>'+
-      '<div class="team-list">'+(list.length?list.map(function(p){return '<div class="team-item"><div class="fld"><label for="n-'+esc(p.id)+'">Prénom affiché</label><input id="n-'+esc(p.id)+'" value="'+esc(p.name)+'" autocomplete="off"></div><button class="btn small primary" data-a="rename" data-id="'+esc(p.id)+'">Enregistrer</button></div>'}).join(''):'<p class="small-note">Aucun salarié pour l’instant.</p>')+'</div>'+
-      '<div class="actions"><button class="btn" data-a="reloadteam">Actualiser la liste</button><span class="sp"></span><button class="btn primary" data-a="close">Fermer</button></div></div></div>';
+      '<div class="team-list">'+(team.length?team.map(function(p){return '<div class="team-item"><div class="fld"><label for="n-'+esc(p.id)+'">Prénom</label><input id="n-'+esc(p.id)+'" value="'+esc(p.name)+'" autocomplete="off"></div><button class="btn small primary" data-a="renameemp" data-id="'+esc(p.id)+'">Enregistrer</button><button class="btn small danger" data-a="delemp" data-id="'+esc(p.id)+'">Retirer</button></div>'}).join(''):'<p class="small-note">Aucun salarié pour l’instant.</p>')+'</div>'+
+      '<form id="addempform" class="team-item"><div class="fld"><label for="newemp">Ajouter un salarié</label><input id="newemp" autocomplete="off" placeholder="Prénom"></div><button class="btn small primary" type="submit">Ajouter</button></form>'+
+      '<p class="small-note">Ces prénoms forment la liste que les salariés voient à l’ouverture. Retirer un salarié ne supprime pas ses interventions : elles repassent en « À affecter ».</p>'+
+      '<div class="actions"><span class="sp"></span><button class="btn primary" data-a="close">Fermer</button></div></div></div>';
   }
 
   /* ---------- Installation sur l'écran d'accueil ---------- */
@@ -367,11 +377,10 @@ button{cursor:pointer}
   /* ---------- Données ---------- */
   function fromRow(r){return {id:r.id,date:r.date,start:t5(r.start_time),end:t5(r.end_time),emp:r.employee_id||'',type:r.type,status:r.status,client:r.client||'',phone:r.phone||'',address:r.address||'',note:r.note||''}}
   function toRow(v){return {date:v.date,start_time:v.start,end_time:v.end,employee_id:v.emp||null,type:v.type,status:v.status,client:v.client,phone:v.phone,address:v.address,note:v.note}}
-  async function loadProfiles(){
-    var r=await sb.from('profiles').select('id,name,role').order('name');
+  async function loadTeam(){
+    var r=await sb.from('employees').select('id,name').order('name');
     if(r.error){toast('Lecture de l’équipe impossible.');return}
-    profiles=r.data||[];
-    team=profiles.filter(function(p){return p.role==='salarie'});
+    team=r.data||[];
   }
   async function loadWeek(){
     var seq=++loadSeq,a=iso(weekStart),b=iso(addDays(weekStart,6));
@@ -387,8 +396,7 @@ button{cursor:pointer}
     if(r.error||!r.data){renderLogin('Votre compte n’est pas encore activé. Contactez votre employeur.');await sb.auth.signOut();return}
     profile=r.data;
     role=isBoss()?'employeur':'salarie';
-    await loadProfiles();
-    if(!isBoss())profiles=[profile];
+    await loadTeam();
     renderTop();
     await loadWeek();
     clearInterval(refreshTimer);
@@ -407,18 +415,24 @@ button{cursor:pointer}
     if(a==='prev')goWeek(addDays(weekStart,-7));
     else if(a==='next')goWeek(addDays(weekStart,7));
     else if(a==='today')goWeek(mondayOf(new Date()));
+    else if(a==='logintab'){loginMode=el.getAttribute('data-v');renderLogin()}
     else if(a==='role'){role=el.getAttribute('data-v');renderTop()}
     else if(a==='new'){var p={};if(el.getAttribute('data-date'))p.date=el.getAttribute('data-date');if(el.hasAttribute('data-emp'))p.emp=el.getAttribute('data-emp');openForm(null,p)}
     else if(a==='edit'&&isBoss())openForm(el.getAttribute('data-id'));
     else if(a==='close')closeModal();
     else if(a==='team')openTeam();
-    else if(a==='reloadteam'){await loadProfiles();openTeam();renderMain()}
-    else if(a==='rename'){
+    else if(a==='renameemp'){
       var id=el.getAttribute('data-id'),name=$('n-'+id).value.trim();
       if(!name){toast('Le prénom ne peut pas être vide.');return}
-      var r=await sb.from('profiles').update({name:name}).eq('id',id);
+      var r=await sb.from('employees').update({name:name}).eq('id',id);
       if(r.error){toast('Modification refusée.');return}
-      await loadProfiles();renderMain();toast('Prénom enregistré.');
+      await loadTeam();renderMain();toast('Prénom enregistré.');
+    }
+    else if(a==='delemp'){
+      if(el.getAttribute('data-c')!=='1'){el.setAttribute('data-c','1');el.textContent='Confirmer';return}
+      var rd=await sb.from('employees').delete().eq('id',el.getAttribute('data-id'));
+      if(rd.error){toast('Suppression refusée.');return}
+      await loadTeam();openTeam();loadWeek();
     }
     else if(a==='install'){
       if(deferredInstall){deferredInstall.prompt();try{await deferredInstall.userChoice}catch(x){}deferredInstall=null}else openInstall();
@@ -433,17 +447,26 @@ button{cursor:pointer}
     }
   });
   document.addEventListener('change',function(e){
-    if(e.target.id==='me'){me=e.target.value;renderMain()}
+    if(e.target.id==='me'){me=e.target.value;if(!isBoss()){try{localStorage.setItem('ads-me',me)}catch(x){}}renderTop()}
     if(e.target.closest&&e.target.closest('#form'))checkConflict();
   });
   document.addEventListener('input',function(e){if(e.target.closest&&e.target.closest('#form'))checkConflict()});
   document.addEventListener('submit',async function(e){
     e.preventDefault();
-    if(e.target.id==='loginform'){
+    if(e.target.id==='loginteam'||e.target.id==='loginboss'){
+      var isTeam=e.target.id==='loginteam';
       var btn=$('loginbtn');btn.disabled=true;btn.textContent='Connexion…';
-      var r=await sb.auth.signInWithPassword({email:$('email').value.trim(),password:$('pwd').value});
-      if(r.error){renderLogin('Adresse e-mail ou mot de passe incorrect.')}
+      var cred=isTeam?{email:cfg.TEAM_EMAIL,password:$('code').value}:{email:$('email').value.trim(),password:$('pwd').value};
+      var r=await sb.auth.signInWithPassword(cred);
+      if(r.error){renderLogin(isTeam?'Code incorrect.':'Adresse e-mail ou mot de passe incorrect.')}
       return;
+    }
+    if(e.target.id==='addempform'){
+      var nm=$('newemp').value.trim();if(!nm)return;
+      if(team.some(function(p){return p.name.toLowerCase()===nm.toLowerCase()})){toast('Ce prénom existe déjà.');return}
+      var ri=await sb.from('employees').insert({name:nm});
+      if(ri.error){toast('Ajout refusé.');return}
+      await loadTeam();openTeam();renderMain();return;
     }
     if(e.target.id==='form'){
       var v=readForm();
