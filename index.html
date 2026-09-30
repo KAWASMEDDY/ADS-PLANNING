@@ -24,7 +24,7 @@
   --accent:#D32F2F; --accent-fg:#FFFFFF;
   --brand:#1A7DBD; --brand-fg:#FFFFFF; --brand-soft:#DCEBF7; --band:#59A8D9; --band-fg:#0B1F3D;
   --danger:#B3261E; --today:#E8F2FA; --warn:#8A5A00; --warn-bg:#FFF1CF;
-  --t-debouchage:#1A7DBD; --t-curage:#7A4FB5; --t-camera:#B26F00; --t-fuite:#C2410C; --t-pompage:#2F7D4F; --t-entretien:#586A82; --t-devis:#B0326B;
+  --t-debouchage:#1A7DBD; --t-curage:#7A4FB5; --t-camera:#B26F00; --t-fuite:#C2410C; --t-pompage:#2F7D4F; --t-entretien:#586A82; --t-devis:#B0326B; --t-chantier:#8A5A2B;
   --f-display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
   --f-body:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
   --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
@@ -35,7 +35,7 @@
   --accent:#D32F2F; --accent-fg:#FFFFFF;
   --brand:#59A8D9; --brand-fg:#0A2540; --brand-soft:#173A57; --band:#0A354E; --band-fg:#FFFFFF;
   --danger:#F2877F; --today:#14324B; --warn:#F0C766; --warn-bg:#3A2F12;
-  --t-debouchage:#59A8D9; --t-curage:#B79BE6; --t-camera:#E8B04F; --t-fuite:#F09062; --t-pompage:#6FCB90; --t-entretien:#9BB0C4; --t-devis:#E58AB5}}
+  --t-debouchage:#59A8D9; --t-curage:#B79BE6; --t-camera:#E8B04F; --t-fuite:#F09062; --t-pompage:#6FCB90; --t-entretien:#9BB0C4; --t-devis:#E58AB5; --t-chantier:#C89B6D}}
 
 *{box-sizing:border-box}
 html,body{margin:0}
@@ -198,7 +198,7 @@ button{cursor:pointer}
 <script>
 (function(){
   'use strict';
-  var TYPES={debouchage:'Débouchage',curage:'Hydrocurage',camera:'Inspection caméra',fuite:'Recherche de fuite',pompage:'Vidange / pompage',entretien:'Entretien',devis:'Visite / devis'};
+  var TYPES={debouchage:'Débouchage',curage:'Hydrocurage',camera:'Inspection caméra',fuite:'Recherche de fuite',pompage:'Vidange / pompage',entretien:'Entretien',devis:'Visite / devis',chantier:'Chantier / Terrassement'};
   var STATUS={prevue:'Prévue',encours:'En cours',terminee:'Terminée',annulee:'Annulée'};
   var DAYS=['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'];
   var MONTHS=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
