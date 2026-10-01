@@ -1,6 +1,6 @@
 // Service worker minimal : permet l'installation sur l'écran d'accueil et l'ouverture de la coque de l'appli sans réseau.
 // Les données du planning sont toujours lues en ligne.
-var CACHE = 'ads-planning-v1';
+var CACHE = 'ads-planning-v2';
 var SHELL = ['./', './index.html', './config.js', './manifest.webmanifest', './icon-192.png', './logo.png'];
 
 self.addEventListener('install', function (e) {

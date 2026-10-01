@@ -189,7 +189,7 @@ button{cursor:pointer}
 </style>
 </head>
 <body>
-<div class="wrap" id="app"></div>
+<div class="wrap" id="app"><div class="login boot"><img class="logo" src="logo.png" alt="ADS Assainissement Débouchage Services"><p>Chargement du planning…</p></div></div>
 <div id="modal"></div>
 <div id="toast" class="toast" hidden></div>
 
@@ -210,6 +210,11 @@ button{cursor:pointer}
   var role='salarie',me='',weekStart=mondayOf(new Date()),editing=null,deferredInstall=null,loadSeq=0,refreshTimer=null;
 
   function $(id){return document.getElementById(id)}
+  function withTimeout(p,ms){return new Promise(function(res,rej){var t=setTimeout(function(){rej(new Error('timeout'))},ms);Promise.resolve(p).then(function(v){clearTimeout(t);res(v)},function(e){clearTimeout(t);rej(e)})})}
+  function safeReload(){
+    try{var last=+sessionStorage.getItem('ads-reload')||0;if(Date.now()-last<20000)return false;sessionStorage.setItem('ads-reload',''+Date.now())}catch(x){}
+    location.reload();return true;
+  }
   function focusEl(el){if(el&&!(window.matchMedia&&matchMedia('(pointer:coarse)').matches))el.focus()}
   function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]})}
   function pad(n){return n<10?'0'+n:''+n}
@@ -451,6 +456,7 @@ button{cursor:pointer}
     var el=e.target.closest('[data-a]');if(!el)return;
     var a=el.getAttribute('data-a');
     if(a==='overlay'){if(e.target===el)closeModal();return}
+    if(a==='reload'){location.reload();return}
     if(a==='prev')goWeek(addDays(weekStart,-7));
     else if(a==='next')goWeek(addDays(weekStart,7));
     else if(a==='today')goWeek(mondayOf(new Date()));
@@ -520,12 +526,20 @@ button{cursor:pointer}
     }
   });
   document.addEventListener('keydown',function(e){if(e.key==='Escape'&&$('modal').innerHTML)closeModal()});
-  document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible'&&session&&!$('form'))loadWeek()});
+  async function resume(){
+    try{
+      var r=await withTimeout(sb.auth.getSession(),8000);
+      if(!r.data.session){renderLogin();return}
+      await withTimeout(loadWeek(),12000);
+    }catch(x){if(!safeReload())toast('Connexion lente. Fermez puis rouvrez l’application si le planning ne s’affiche pas.')}
+  }
+  document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible'&&session&&!$('form'))resume()});
+  window.addEventListener('pageshow',function(e){if(e.persisted)safeReload()});
 
   /* ---------- Démarrage ---------- */
   if('serviceWorker' in navigator&&location.protocol.indexOf('http')===0){navigator.serviceWorker.register('sw.js').catch(function(){})}
   if(!configured||!window.supabase){renderSetup();return}
-  sb=window.supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY,{auth:{persistSession:true,autoRefreshToken:true}});
+  sb=window.supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false,lock:function(name,timeout,fn){return fn()}}});
   sb.auth.onAuthStateChange(function(event,s){
     if(event==='SIGNED_OUT'||!s){session=null;profile=null;items=[];clearInterval(refreshTimer);closeModal();renderLogin();return}
     if(event==='SIGNED_IN'||event==='INITIAL_SESSION'){
@@ -534,7 +548,8 @@ button{cursor:pointer}
       if(first)setTimeout(afterLogin,0);
     }else session=s;
   });
-  sb.auth.getSession().then(function(r){if(!r.data.session)renderLogin()});
+  withTimeout(sb.auth.getSession(),8000).then(function(r){if(!r.data.session)renderLogin()}).catch(function(){if(!safeReload()&&document.querySelector('.boot'))renderLogin('La connexion est lente. Réessayez.')});
+  setTimeout(function(){var b=document.querySelector('.boot');if(b)b.innerHTML='<img class="logo" src="logo.png" alt=""><p>Le planning met trop de temps à s’ouvrir.</p><button class="btn primary" data-a="reload">Recharger</button>'},12000);
 })();
 </script>
 </body>
