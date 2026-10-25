@@ -194,7 +194,7 @@ button{cursor:pointer}
 <div id="toast" class="toast" hidden></div>
 
 <script src="config.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js"></script>
 <script>
 (function(){
   'use strict';
@@ -503,7 +503,10 @@ button{cursor:pointer}
       var btn=$('loginbtn');btn.disabled=true;btn.textContent='Connexion…';
       var cred=isTeam?{email:cfg.TEAM_EMAIL,password:$('code').value}:{email:$('email').value.trim(),password:$('pwd').value};
       var r=await sb.auth.signInWithPassword(cred);
-      if(r.error){renderLogin(isTeam?'Code incorrect.':'Adresse e-mail ou mot de passe incorrect.')}
+      if(r.error){
+        var bad=r.error.status===400||r.error.status===422||/invalid|credentials/i.test(r.error.message||'');
+        renderLogin(bad?(isTeam?'Code incorrect.':'Adresse e-mail ou mot de passe incorrect.'):'Connexion impossible pour le moment : le service ne répond pas. Réessayez dans quelques minutes. Si cela continue, prévenez l’employeur.');
+      }
       return;
     }
     if(e.target.id==='addempform'){
