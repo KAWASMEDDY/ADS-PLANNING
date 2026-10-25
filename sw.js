@@ -1,6 +1,6 @@
 // Service worker minimal : permet l'installation sur l'écran d'accueil et l'ouverture de la coque de l'appli sans réseau.
 // Les données du planning sont toujours lues en ligne.
-var CACHE = 'ads-planning-v3';
+var CACHE = 'ads-planning-v4';
 var SHELL = ['./', './index.html', './config.js', './manifest.webmanifest', './icon-192.png', './logo.png'];
 
 self.addEventListener('install', function (e) {
@@ -24,4 +24,19 @@ self.addEventListener('fetch', function (e) {
       return res;
     }).catch(function () { return caches.match(req).then(function (r) { return r || caches.match('./index.html'); }); })
   );
+});
+
+self.addEventListener('push', function (e) {
+  var d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (x) { d = { body: e.data && e.data.text() }; }
+  e.waitUntil(self.registration.showNotification(d.title || 'Planning ADS', {
+    body: d.body || '', tag: d.tag, icon: 'icon-192.png', badge: 'icon-192.png'
+  }));
+});
+self.addEventListener('notificationclick', function (e) {
+  e.notification.close();
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (list) {
+    for (var i = 0; i < list.length; i++) { if ('focus' in list[i]) return list[i].focus(); }
+    return self.clients.openWindow('./');
+  }));
 });

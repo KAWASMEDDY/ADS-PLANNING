@@ -186,6 +186,7 @@ button{cursor:pointer}
 }
 @media (pointer:coarse){input,select,textarea,.fld input,.fld select,.fld textarea,.me select{font-size:16px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+.pushbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px}.pushbar:empty{display:none}.pn{font-size:13px;color:var(--muted,#5b6b7a)}.pn.ok{color:#1b7a3a;font-weight:600}
 </style>
 </head>
 <body>
@@ -328,7 +329,7 @@ button{cursor:pointer}
     if(isBoss()&&!me)me=team.length?team[0].id:'';
     var h='<div class="me"><label for="me">'+(isBoss()?'Voir le planning de':'Vous êtes')+'</label><select id="me" data-a="me">'+
       (isBoss()?'':'<option value="">Choisir mon prénom</option>')+
-      team.map(function(p){return '<option value="'+esc(p.id)+'"'+(p.id===me?' selected':'')+'>'+esc(p.name)+'</option>'}).join('')+'</select></div>';
+      team.map(function(p){return '<option value="'+esc(p.id)+'"'+(p.id===me?' selected':'')+'>'+esc(p.name)+'</option>'}).join('')+'</select></div>'+(isBoss()?'':'<div id="pushbar" class="pushbar"></div>');
     if(!me){$('main').innerHTML=h+'<div class="empty">'+(team.length?'Choisissez votre prénom pour voir vos interventions de la semaine.':'Aucun salarié dans la liste pour l’instant.')+'</div>';return}
     var mine=items.filter(function(it){return it.emp===me&&it.status!=='annulee'});
     var tot=mine.reduce(function(s,x){return s+hours(x)},0);
@@ -353,6 +354,46 @@ button{cursor:pointer}
       h+='</div></div>';
     }
     $('main').innerHTML=h+'</div>';
+    pushBar();
+  }
+
+
+  /* ---------- Notifications ---------- */
+  var VAPID='BCOQg-YU0s0PWfdPPQ7l3r5JrJVqVgtkfHb7CTboLbMXZLNbeHLeWFcFrST8_cUTLRPZlbx_SROBK0dDd60GPUI';
+  function b64u(b){var p='='.repeat((4-b.length%4)%4),r=atob((b+p).replace(/-/g,'+').replace(/_/g,'/')),o=new Uint8Array(r.length);for(var i=0;i<r.length;i++)o[i]=r.charCodeAt(i);return o}
+  function isStandalone(){return window.navigator.standalone===true||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches)}
+  async function curSub(){try{var reg=await navigator.serviceWorker.ready;return await reg.pushManager.getSubscription()}catch(x){return null}}
+  async function saveSub(sub){
+    var j=sub.toJSON();
+    return sb.from('push_subscriptions').upsert({employee_id:me,endpoint:j.endpoint,p256dh:j.keys.p256dh,auth:j.keys.auth},{onConflict:'endpoint'});
+  }
+  async function pushBar(){
+    var el=$('pushbar');if(!el||isBoss())return;
+    if(!me){el.innerHTML='';return}
+    var ios=/iPhone|iPad|iPod/i.test(navigator.userAgent||'');
+    if(!('serviceWorker' in navigator)||!('PushManager' in window)||!('Notification' in window)){
+      el.innerHTML=ios&&!isStandalone()?'<span class="pn">Pour recevoir les notifications, ajoutez d’abord l’application à l’écran d’accueil (bouton Installer), puis ouvrez-la depuis l’icône.</span>':'';return}
+    if(Notification.permission==='denied'){el.innerHTML='<span class="pn">Notifications bloquées : autorisez-les dans les réglages du téléphone pour cette application.</span>';return}
+    var sub=Notification.permission==='granted'?await curSub():null;
+    if(sub)el.innerHTML='<span class="pn ok">Notifications activées sur ce téléphone</span><button class="btn small" data-a="push-off">Désactiver</button>';
+    else el.innerHTML='<button class="btn small primary" data-a="push-on">Activer les notifications</button><span class="pn">Soyez prévenu dès qu’une intervention vous est ajoutée.</span>';
+  }
+  async function pushOn(btn){
+    try{
+      btn.disabled=true;
+      var perm=await Notification.requestPermission();
+      if(perm!=='granted'){toast('Notifications refusées.');return pushBar()}
+      var reg=await navigator.serviceWorker.ready;
+      var sub=await reg.pushManager.getSubscription()||await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64u(VAPID)});
+      var r=await saveSub(sub);
+      if(r.error){toast('Activation impossible pour le moment.');return pushBar()}
+      toast('Notifications activées.');
+    }catch(x){toast('Activation impossible sur ce téléphone.')}
+    pushBar();
+  }
+  async function pushOff(){
+    try{var sub=await curSub();if(sub){await sb.from('push_subscriptions').delete().eq('endpoint',sub.endpoint);await sub.unsubscribe()}}catch(x){}
+    pushBar();
   }
 
   /* ---------- Fenêtre intervention (employeur) ---------- */
@@ -483,6 +524,8 @@ button{cursor:pointer}
       if(deferredInstall){deferredInstall.prompt();try{await deferredInstall.userChoice}catch(x){}deferredInstall=null}else openInstall();
     }
     else if(a==='logout'){await sb.auth.signOut()}
+    else if(a==='push-on'){pushOn(el)}
+    else if(a==='push-off'){pushOff()}
     else if(a==='dup'&&editing){editing.id=null;$('mt').textContent='Nouvelle intervention (copie)';el.parentNode.querySelectorAll('[data-a="del"],[data-a="dup"]').forEach(function(x){x.remove()});focusEl($('f-date'))}
     else if(a==='del'&&editing){
       if(el.getAttribute('data-c')!=='1'){el.setAttribute('data-c','1');el.textContent='Confirmer la suppression';return}
@@ -492,7 +535,7 @@ button{cursor:pointer}
     }
   });
   document.addEventListener('change',function(e){
-    if(e.target.id==='me'){me=e.target.value;if(!isBoss()){try{localStorage.setItem('ads-me',me)}catch(x){}}renderTop()}
+    if(e.target.id==='me'){me=e.target.value;if(!isBoss()){try{localStorage.setItem('ads-me',me)}catch(x){}}renderTop();if(!isBoss()&&me&&'serviceWorker' in navigator&&'PushManager' in window&&window.Notification&&Notification.permission==='granted')curSub().then(function(sub){if(sub)saveSub(sub)})}
     if(e.target.closest&&e.target.closest('#form'))checkConflict();
   });
   document.addEventListener('input',function(e){if(e.target.closest&&e.target.closest('#form'))checkConflict()});
